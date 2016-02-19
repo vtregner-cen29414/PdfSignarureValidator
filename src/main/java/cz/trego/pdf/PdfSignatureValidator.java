@@ -13,13 +13,15 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 
 /**
  * Created by cen29414 on 19.2.2016.
  */
 public class PdfSignatureValidator {
     private static final Logger LOGGER = LoggerFactory.getLogger(PdfSignatureValidator.class);
-    public boolean verifyPdf(String file) throws IOException, GeneralSecurityException {
+
+    public VerificationResult verifyPdf(String file) throws IOException, GeneralSecurityException {
 
         LOGGER.info("Verifying " + file);
         PdfReader reader = new PdfReader(file);
@@ -27,16 +29,22 @@ public class PdfSignatureValidator {
 
         // Search of the whole signature
         ArrayList<String> names = af.getSignatureNames();
-        final boolean[] valid = {true};
+        final List<SignatureResult> signatureResults = new ArrayList<>();
 
         // For every signature :
-        names.stream().forEach(name -> valid[0] = valid[0] && isValidSignature(name, af));
+        names.stream().forEach(name -> {
+            signatureResults.add(isValidSignature(name, af));
+        });
 
-        return valid[0];
+        VerificationResult result =  new VerificationResult();
+        result.setAllSignaturesValid(signatureResults.stream().allMatch(SignatureResult::isSignatureValid));
+        result.setSignatureResults(signatureResults);
+        return result;
     }
 
-    private boolean isValidSignature(String signatureName, AcroFields af) {
+    private SignatureResult isValidSignature(String signatureName, AcroFields af) {
         boolean valid = true;
+        SignatureResult result = new SignatureResult();
         try {
             LOGGER.debug("Signature name: " + signatureName);
             LOGGER.debug("Signature covers whole document: " + af.signatureCoversWholeDocument(signatureName));
@@ -47,20 +55,25 @@ public class PdfSignatureValidator {
             Certificate certificates[] = pk.getCertificates();
             LOGGER.info("Integrity check OK? " + pk.verify());
             valid = pk.verify();
+            result.setIntegrity(valid);
 
             for (Certificate certificate : certificates) {
                 X509Certificate x509Certificate = (X509Certificate) certificate;
-                String result = CertificateVerification.verifyCertificate(x509Certificate, null, cal);
+                String errMsg = CertificateVerification.verifyCertificate(x509Certificate, null, cal);
                 LOGGER.info("Verificating certificate: " + x509Certificate.getSubjectDN());
-                if (result == null) LOGGER.info("Certificate verification OK");
-                else LOGGER.error("Certificate verification failed: " + result);
-                valid = valid && (result == null);
+                if (errMsg == null) LOGGER.info("Certificate verification OK");
+                else LOGGER.error("Certificate verification failed: " + errMsg);
+                valid = valid && (errMsg == null);
+                result.getCertificateVerifications().add(new CertificateInfo(x509Certificate, errMsg));
             }
+
         } catch (GeneralSecurityException e) {
             LOGGER.error("Error while verifiing certificate", e);
             valid = false;
         }
 
-        return valid;
+        result.setSignatureValid(valid);
+
+        return result;
     }
 }
