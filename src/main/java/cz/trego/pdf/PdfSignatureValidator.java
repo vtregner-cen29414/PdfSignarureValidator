@@ -52,7 +52,7 @@ public class PdfSignatureValidator {
 
             PdfPKCS7 pk = af.verifySignature(signatureName);
             Calendar cal = pk.getSignDate();
-            Certificate certificates[] = pk.getCertificates();
+            Certificate certificates[] = pk.getSignCertificateChain();
             LOGGER.info("Integrity check OK? " + pk.verify());
             valid = pk.verify();
             result.setIntegrity(valid);
