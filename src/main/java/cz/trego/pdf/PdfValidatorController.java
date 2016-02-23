@@ -26,6 +26,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.GeneralSecurityException;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -53,6 +54,15 @@ public class PdfValidatorController implements Initializable {
 
     private ObservableList<Pdf> data;
 
+    @FXML
+    private Label lblTotal;
+    @FXML
+    private Label lblValid;
+    @FXML
+    private Label lblInvalid;
+    @FXML
+    private Label lblNoSignature;
+
 
 
 
@@ -65,6 +75,10 @@ public class PdfValidatorController implements Initializable {
         if (lastDir != null) fileChooser.setInitialDirectory(new File(lastDir));
         final File dir = fileChooser.showDialog(btnSelectDir.getScene().getWindow());
         final PdfSignatureValidator validator = new PdfSignatureValidator();
+        final AtomicInteger total = new AtomicInteger(0);
+        final AtomicInteger valid = new AtomicInteger(0);
+        final AtomicInteger invalid = new AtomicInteger(0);
+        final AtomicInteger noSignature = new AtomicInteger(0);
         Task<Void> validateTask = new Task<Void>() {
             @Override
             protected Void call() throws Exception {
@@ -80,6 +94,11 @@ public class PdfValidatorController implements Initializable {
                                     String dn = result.getFirstSignatureCertificate().getSubjectDN().getName();
                                     pdf.setCertificate(getSubjectDnPart(dn, "cn"));
                                     pdf.setVerificationResult(result);
+
+                                    total.incrementAndGet();
+                                    if (pdf.getVerificationResult().isAllSignaturesValid()) valid.incrementAndGet();
+                                    else invalid.incrementAndGet();
+
                                     Platform.runLater(() -> data.add(pdf));
 
                                 } catch (GeneralSecurityException e) {
@@ -97,6 +116,11 @@ public class PdfValidatorController implements Initializable {
             @Override
             protected void succeeded() {
                 preferences.put(LAST_DIR, dir.toString());
+                Platform.runLater(() -> {
+                    lblTotal.setText(String.valueOf(total.get()));
+                    lblValid.setText(String.valueOf(valid.get()));
+                    lblInvalid.setText(String.valueOf(invalid.get()));
+                });
             }
 
             @Override
@@ -135,6 +159,7 @@ public class PdfValidatorController implements Initializable {
                     setText(item.toFile().getName());
                     setTooltip(new Tooltip(item.getParent().toFile().getAbsolutePath()));
                 }
+                else setText(null);
             }
         });
 
@@ -157,18 +182,20 @@ public class PdfValidatorController implements Initializable {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (!empty) {
+                if (!empty && item != null) {
                     Hyperlink certLink = new Hyperlink(item);
                     certLink.setOnAction(event -> onCertLink(event));
                     setGraphic(certLink);
                 }
-                //else setGraphic(null);
+                else {
+                    setGraphic(null);
+                }
             }
         });
 
     }
 
     private void onCertLink(ActionEvent event) {
-
+        System.out.println(event);
     }
 }

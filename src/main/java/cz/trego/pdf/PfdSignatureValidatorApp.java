@@ -22,6 +22,7 @@ public class PfdSignatureValidatorApp extends Application {
     public void start(Stage primaryStage) throws IOException {
         Parent root = FXMLLoader.load(getClass().getClassLoader().getResource("mainframe.fxml"));
         Scene scene = new Scene(root, 800, 600);
+        scene.getStylesheets().add("custom.css");
         primaryStage.setTitle("PDF Signature Validator");
         primaryStage.setScene(scene);
         primaryStage.show();

@@ -1,5 +1,7 @@
 package cz.trego.pdf;
 
+import com.itextpdf.text.pdf.security.VerificationException;
+
 import java.security.cert.X509Certificate;
 import java.util.List;
 
@@ -12,7 +14,7 @@ public class VerificationResult {
 
     public boolean isAllSignaturesValid() {
         return allSignaturesValid;
-    }
+    };
 
     public void setAllSignaturesValid(boolean allSignaturesValid) {
         this.allSignaturesValid = allSignaturesValid;
@@ -34,9 +36,9 @@ public class VerificationResult {
                     if (!signatureResult.isIntegrity()) {
                         sb.append("Neplatný podpis. Porušena integrita souboru!\n");
                     }
-                    for (CertificateInfo certificateInfo : signatureResult.getCertificateVerifications()) {
-                        if (certificateInfo.getValidationErrorMessage() != null) {
-                            sb.append(certificateInfo.getValidationErrorMessage()).append("\n");
+                    if (signatureResult.getErrors() != null) {
+                        for (VerificationException verificationException : signatureResult.getErrors()) {
+                            sb.append(verificationException.getMessage().substring(verificationException.getMessage().indexOf("failed: ")+8)).append("\n");
                         }
                     }
                 }
@@ -48,7 +50,7 @@ public class VerificationResult {
 
     public X509Certificate getFirstSignatureCertificate() {
         if (signatureResults != null) {
-            return signatureResults.get(0).getCertificateVerifications().get(0).getCertificate();
+            return signatureResults.get(0).getSignerCertificate();
         }
         return null;
     }

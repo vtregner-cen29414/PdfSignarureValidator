@@ -1,0 +1,3 @@
+.table-cell .hyperlink {
+    -fx-text-fill: ladder(-fx-background, -fx-light-text-color 50%, -fx-accent 51% );
+}

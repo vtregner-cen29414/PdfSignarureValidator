@@ -25,7 +25,7 @@ public class PdfSignatureValidatorTest {
     public void test() {
         PdfSignatureValidator validator = new PdfSignatureValidator();
         try {
-            Assert.assertTrue(validator.verifyPdf("c:\\Java\\PdfSignarureValidator\\src\\test\\resources\\confirmation.pdf").isAllSignaturesValid());
+            Assert.assertTrue(validator.verifyPdf("c:\\Java\\PdfSignarureValidator\\src\\test\\resources\\ZD_04_01_VaVpI.pdf").isAllSignaturesValid());
             Assert.assertFalse(validator.verifyPdf("c:\\Java\\PdfSignarureValidator\\src\\test\\resources\\HelloWorld_sign.pdf").isAllSignaturesValid());
 
         } catch (IOException e) {
