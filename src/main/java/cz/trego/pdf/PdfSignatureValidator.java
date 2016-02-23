@@ -4,6 +4,7 @@ import com.itextpdf.text.pdf.AcroFields;
 import com.itextpdf.text.pdf.PdfDictionary;
 import com.itextpdf.text.pdf.PdfReader;
 import com.itextpdf.text.pdf.security.*;
+import org.bouncycastle.cert.ocsp.BasicOCSPResp;
 import org.bouncycastle.tsp.TimeStampToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,12 +14,11 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
+import java.security.cert.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -108,25 +108,61 @@ public class PdfSignatureValidator {
             result.setSignerCertificate(signerCert);
             valid = valid && errors.size() == 0;
 
-            /*for (Certificate certificate : certificates) {
-                X509Certificate x509Certificate = (X509Certificate) certificate;
-                String errMsg = CertificateVerification.verifyCertificate(x509Certificate, null, signDate);
-                LOGGER.info("Verificating certificate: " + x509Certificate.getSubjectDN());
-                if (errMsg == null) LOGGER.info("Certificate verification OK");
-                else LOGGER.error("Certificate verification failed: " + errMsg);
-                valid = valid && (errMsg == null);
-                result.getCertificateVerifications().add(new CertificateInfo(x509Certificate, errMsg));
-            }*/
+            X509Certificate signCert = (X509Certificate)certificates[0];
+            X509Certificate issuerCert = (certificates.length > 1 ? (X509Certificate)certificates[1] : null);
+            LOGGER.debug("=== Checking validity of the document at the time of signing ===");
+            Boolean validInTimeOfSignature = checkRevocation(pk, signCert, issuerCert, signDate.getTime());
+            result.setRevokedInTimeOfSignature(validInTimeOfSignature != null ? !validInTimeOfSignature : null);
+            LOGGER.debug("=== Checking validity of the document today ===");
+            Boolean validNow = checkRevocation(pk, signCert, issuerCert, new Date());
+            result.setRevokedNow(validNow != null ? !validNow : null);
 
+            if (result.getRevokedInTimeOfSignature() != null && result.getRevokedInTimeOfSignature()) valid = false;
+            if (result.getRevokedNow() != null && result.getRevokedNow()) valid = false;
 
 
         } catch (GeneralSecurityException e) {
             LOGGER.error("Error while verifiing certificate", e);
+            valid = false;
+        } catch (IOException e) {
+            LOGGER.error("Error while checkRevocation", e);
             valid = false;
         }
 
         result.setSignatureValid(valid);
 
         return result;
+    }
+
+
+    public Boolean checkRevocation(PdfPKCS7 pkcs7, X509Certificate signCert, X509Certificate issuerCert, Date date) throws IOException {
+        try {
+            List<BasicOCSPResp> ocsps = new ArrayList<>();
+            if (pkcs7.getOcsp() != null)
+                ocsps.add(pkcs7.getOcsp());
+            OCSPVerifier ocspVerifier = new OCSPVerifier(null, ocsps);
+            List<VerificationOK> verification = ocspVerifier.verify(signCert, issuerCert, date);
+            if (verification.size() == 0) {
+                List<X509CRL> crls = new ArrayList<>();
+                if (pkcs7.getCRLs() != null) {
+                    for (CRL crl : pkcs7.getCRLs())
+                        crls.add((X509CRL)crl);
+                }
+                CRLVerifier crlVerifier = new CRLVerifier(null, crls);
+                verification.addAll(crlVerifier.verify(signCert, issuerCert, date));
+            }
+            if (verification.size() == 0) {
+                LOGGER.debug("The signing certificate couldn't be verified");
+                return null;
+            }
+            else {
+                for (VerificationOK v : verification)
+                    LOGGER.debug(v.toString());
+                return true;
+            }
+        } catch (GeneralSecurityException e) {
+            LOGGER.error("checkRevocation:", e);
+            return false;
+        }
     }
 }

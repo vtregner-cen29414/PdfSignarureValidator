@@ -41,6 +41,12 @@ public class VerificationResult {
                             sb.append(verificationException.getMessage().substring(verificationException.getMessage().indexOf("failed: ")+8)).append("\n");
                         }
                     }
+                    if (signatureResult.getRevokedInTimeOfSignature() != null && signatureResult.getRevokedInTimeOfSignature()) {
+                        sb.append("Platnost certifikátu byla odvolána v době podpisu").append("\n");
+                    }
+                    if (signatureResult.getRevokedNow() != null && signatureResult.getRevokedNow()) {
+                        sb.append("Certifikátu je nyní zneplatněn").append("\n");
+                    }
                 }
             }
             return sb.toString();

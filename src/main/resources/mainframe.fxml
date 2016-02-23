@@ -10,42 +10,47 @@
 
 <VBox prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="cz.trego.pdf.PdfValidatorController">
   <children>
-      <HBox alignment="CENTER_LEFT">
+      <AnchorPane>
          <children>
-            <Button fx:id="btnSelectDir" mnemonicParsing="false" onAction="#onSelectDir" text="Vybrat adresář">
-               <HBox.margin>
-                  <Insets right="5.0" />
-               </HBox.margin>
-            </Button>
-            <Label text="Souborů:" />
-            <Label fx:id="lblTotal" text="0">
-               <HBox.margin>
-                  <Insets left="5.0" right="5.0" />
-               </HBox.margin>
-            </Label>
-            <Label text="Validních:">
-               <HBox.margin>
-                  <Insets left="10.0" right="5.0" />
-               </HBox.margin>
-            </Label>
-            <Label fx:id="lblValid" text="0" />
-            <Label text="Chybných:">
-               <HBox.margin>
-                  <Insets left="10.0" right="5.0" />
-               </HBox.margin>
-            </Label>
-            <Label fx:id="lblInvalid" text="0" />
-            <Label text="Bez podpisu:">
-               <HBox.margin>
-                  <Insets left="10.0" right="5.0" />
-               </HBox.margin>
-            </Label>
-            <Label fx:id="lblNoSignature" text="0" />
+            <HBox alignment="CENTER_LEFT" AnchorPane.leftAnchor="0.0">
+               <children>
+                  <Button fx:id="btnSelectDir" mnemonicParsing="false" onAction="#onSelectDir" text="Vybrat adresář">
+                     <HBox.margin>
+                        <Insets right="5.0" />
+                     </HBox.margin>
+                  </Button>
+                  <Label text="Souborů:" />
+                  <Label fx:id="lblTotal" text="0">
+                     <HBox.margin>
+                        <Insets left="5.0" right="5.0" />
+                     </HBox.margin>
+                  </Label>
+                  <Label text="Validních:">
+                     <HBox.margin>
+                        <Insets left="10.0" right="5.0" />
+                     </HBox.margin>
+                  </Label>
+                  <Label fx:id="lblValid" text="0" />
+                  <Label text="Chybných:">
+                     <HBox.margin>
+                        <Insets left="10.0" right="5.0" />
+                     </HBox.margin>
+                  </Label>
+                  <Label fx:id="lblInvalid" text="0" />
+                  <Label text="Bez podpisu:">
+                     <HBox.margin>
+                        <Insets left="10.0" right="5.0" />
+                     </HBox.margin>
+                  </Label>
+                  <Label fx:id="lblNoSignature" text="0" />
+               </children>
+               <padding>
+                  <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+               </padding>
+            </HBox>
+            <ProgressIndicator fx:id="progress" prefHeight="20.0" prefWidth="20.0" visible="false" AnchorPane.bottomAnchor="0.0" AnchorPane.rightAnchor="10.0" AnchorPane.topAnchor="0.0" />
          </children>
-         <padding>
-            <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
-         </padding>
-      </HBox>
+      </AnchorPane>
     <AnchorPane maxHeight="-1.0" maxWidth="-1.0" prefHeight="-1.0" prefWidth="-1.0" VBox.vgrow="ALWAYS">
          <children>
             <TableView fx:id="tab" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
@@ -54,9 +59,6 @@
                 <TableColumn fx:id="colResult" prefWidth="75.0" text="Podpis" />
                   <TableColumn fx:id="colCert" prefWidth="75.0" text="Certifikát" />
               </columns>
-               <padding>
-                  <Insets left="5.0" right="5.0" />
-               </padding>
                <columnResizePolicy>
                   <TableView fx:constant="CONSTRAINED_RESIZE_POLICY" />
                </columnResizePolicy>

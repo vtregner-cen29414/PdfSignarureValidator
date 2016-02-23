@@ -14,6 +14,8 @@ import java.util.List;
 public class SignatureResult {
     private boolean signatureValid;
     private boolean integrity;
+    private Boolean isRevokedInTimeOfSignature;
+    private Boolean isRevokedNow;
 
     List<VerificationException> errors;
 
@@ -26,6 +28,22 @@ public class SignatureResult {
     private boolean addingAnnotationsAllowed;
 
     public SignatureResult() {
+    }
+
+    public Boolean getRevokedInTimeOfSignature() {
+        return isRevokedInTimeOfSignature;
+    }
+
+    public void setRevokedInTimeOfSignature(Boolean revokedInTimeOfSignature) {
+        isRevokedInTimeOfSignature = revokedInTimeOfSignature;
+    }
+
+    public Boolean getRevokedNow() {
+        return isRevokedNow;
+    }
+
+    public void setRevokedNow(Boolean revokedNow) {
+        isRevokedNow = revokedNow;
     }
 
     public boolean isSignatureValid() {
