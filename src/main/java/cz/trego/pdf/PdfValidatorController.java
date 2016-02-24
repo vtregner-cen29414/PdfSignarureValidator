@@ -1,6 +1,7 @@
 package cz.trego.pdf;
 
-import com.itextpdf.text.pdf.security.VerificationException;
+import com.itextpdf.text.pdf.security.*;
+import com.itextpdf.text.pdf.security.CertificateInfo;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -24,6 +25,7 @@ import java.net.URL;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.GeneralSecurityException;
+import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
 import java.util.Optional;
 import java.util.ResourceBundle;
@@ -212,7 +214,7 @@ public class PdfValidatorController implements Initializable {
                     Pdf pdf = getTableView().getItems().get(getTableRow().getIndex());
                     if (!pdf.getVerificationResult().isNoSignature()) {
                         Hyperlink certLink = new Hyperlink(item);
-                        certLink.setOnAction(event -> onCertLink(event));
+                        certLink.setOnAction(event -> onCertLink(event, getIndex()));
                         setGraphic(certLink);
                     }
                     else setGraphic(new Label(item));
@@ -306,7 +308,37 @@ public class PdfValidatorController implements Initializable {
     }
 
 
-    private void onCertLink(ActionEvent event) {
-        System.out.println(event);
+    private void onCertLink(ActionEvent event, int index) {
+        Pdf pdf = tab.getItems().get(index);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+
+        alert.setTitle("Detaily certifikátu");
+        SignatureResult signatureResult;
+        if (pdf.getVerificationResult().isAllSignaturesValid()) {
+            signatureResult = pdf.getVerificationResult().getSignatureResults().get(0);
+        }
+        else {
+            Optional<SignatureResult> first = pdf.getVerificationResult().getSignatureResults().stream().filter(s -> !s.isSignatureValid()).findFirst();
+            signatureResult = first.get();
+        }
+        X509Certificate certificate = signatureResult.getSignerCertificate();
+        StringBuilder header = new StringBuilder();
+        header.append(signatureResult.getNameOfSigner()).append("\n");
+        String organization = CertificateInfo.getSubjectFields(certificate).getField("O");
+        if (organization != null) header.append(organization).append("\n\n");
+
+        header.append("Vydal: ");
+        header.append(CertificateInfo.getIssuerFields(certificate).getField("CN")).append(", ");
+        header.append(CertificateInfo.getIssuerFields(certificate).getField("O")).append("\n");
+
+        SimpleDateFormat sfd = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
+        header.append("Platný od: ").append(sfd.format(certificate.getNotBefore())).append("\n");
+        header.append("Platný do: ").append(sfd.format(certificate.getNotAfter())).append("\n");
+
+        alert.setHeaderText(header.toString());
+
+        alert.showAndWait();
+
+
     }
 }
