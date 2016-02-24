@@ -1,5 +1,6 @@
 package cz.trego.pdf;
 
+import com.itextpdf.text.pdf.security.VerificationException;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -7,12 +8,8 @@ import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.image.ImageView;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import org.slf4j.Logger;
@@ -27,6 +24,7 @@ import java.net.URL;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.GeneralSecurityException;
+import java.text.SimpleDateFormat;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,6 +35,7 @@ import java.util.prefs.Preferences;
  */
 public class PdfValidatorController implements Initializable {
 
+    public static final String STYLE_ERROR = "-fx-text-fill: #ff4331";
     private static final Logger LOGGER = LoggerFactory.getLogger(PdfValidatorController.class);
     public static final String LAST_DIR = "LAST_DIR";
 
@@ -94,13 +93,21 @@ public class PdfValidatorController implements Initializable {
                                     VerificationResult result = validator.verifyPdf(file.toString());
                                     Pdf pdf = new Pdf();
                                     pdf.setFile(file);
-                                    pdf.setValidationResult(result.isAllSignaturesValid() ? "OK" : result.composeErrorMessage());
-                                    String dn = result.getFirstSignatureCertificate().getSubjectDN().getName();
-                                    pdf.setCertificate(getSubjectDnPart(dn, "cn"));
+                                    if (result.isNoSignature()) pdf.setValidationResult("N/A");
+                                    else pdf.setValidationResult(result.isAllSignaturesValid() ? "OK" : result.composeErrorMessage());
+
+                                    if (result.isNoSignature()) {
+                                        pdf.setCertificate("N/A");
+                                    }
+                                    else {
+                                        String dn = result.getFirstSignatureCertificate().getSubjectDN().getName();
+                                        pdf.setCertificate(getSubjectDnPart(dn, "cn"));
+                                    }
                                     pdf.setVerificationResult(result);
 
                                     total.incrementAndGet();
-                                    if (pdf.getVerificationResult().isAllSignaturesValid()) valid.incrementAndGet();
+                                    if (pdf.getVerificationResult().isAllSignaturesValid() && !pdf.getVerificationResult().isNoSignature()) valid.incrementAndGet();
+                                    else if (pdf.getVerificationResult().isNoSignature()) noSignature.incrementAndGet();
                                     else invalid.incrementAndGet();
 
                                     Platform.runLater(() -> data.add(pdf));
@@ -124,6 +131,7 @@ public class PdfValidatorController implements Initializable {
                     lblTotal.setText(String.valueOf(total.get()));
                     lblValid.setText(String.valueOf(valid.get()));
                     lblInvalid.setText(String.valueOf(invalid.get()));
+                    lblNoSignature.setText(String.valueOf(noSignature.get()));
                     progress.setVisible(false);
                     btnSelectDir.setDisable(false);
                 });
@@ -184,11 +192,14 @@ public class PdfValidatorController implements Initializable {
                 if (item == null || empty) {
                     setGraphic(null);
                 } else {
-                    Hyperlink certLink = new Hyperlink(item);
-                    certLink.setOnAction(event -> onValidationDetailLink(event, getIndex()));
                     Pdf pdf = getTableView().getItems().get(getTableRow().getIndex());
-                    certLink.setStyle(pdf.getVerificationResult().isAllSignaturesValid() ? "" : "-fx-text-fill: #ff4331");
-                    setGraphic(certLink);
+                    if (!pdf.getVerificationResult().isNoSignature()) {
+                        Hyperlink certLink = new Hyperlink(item);
+                        certLink.setOnAction(event -> onValidationDetailLink(event, getIndex()));
+                        certLink.setStyle(pdf.getVerificationResult().isAllSignaturesValid() ? "" : STYLE_ERROR);
+                        setGraphic(certLink);
+                    }
+                    else setGraphic(new Label(item));
                 }
             }
         });
@@ -198,9 +209,13 @@ public class PdfValidatorController implements Initializable {
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 if (!empty && item != null) {
-                    Hyperlink certLink = new Hyperlink(item);
-                    certLink.setOnAction(event -> onCertLink(event));
-                    setGraphic(certLink);
+                    Pdf pdf = getTableView().getItems().get(getTableRow().getIndex());
+                    if (!pdf.getVerificationResult().isNoSignature()) {
+                        Hyperlink certLink = new Hyperlink(item);
+                        certLink.setOnAction(event -> onCertLink(event));
+                        setGraphic(certLink);
+                    }
+                    else setGraphic(new Label(item));
                 }
                 else {
                     setGraphic(null);
@@ -212,24 +227,79 @@ public class PdfValidatorController implements Initializable {
 
     private void onValidationDetailLink(ActionEvent event, int index) {
         Pdf pdf = tab.getItems().get(index);
-        Alert alert = new Alert(pdf.getVerificationResult().isAllSignaturesValid() ?  Alert.AlertType.INFORMATION : Alert.AlertType.WARNING);
-        alert.setTitle("Validate podpisu");
-        alert.setHeaderText(pdf.getVerificationResult().isAllSignaturesValid() ? "Podepsáno a všechny podpisy jsou platné" : "Nejméně jeden podpis má problémy");
-        SignatureResult signatureResult = pdf.getVerificationResult().getSignatureResults().get(0);
-        VBox content = new VBox();
+        Alert alert = new Alert(pdf.getVerificationResult().isAllSignaturesValid() ?  Alert.AlertType.INFORMATION : pdf.getVerificationResult().isIntegrityOk() ? Alert.AlertType.WARNING : Alert.AlertType.ERROR);
+
+        alert.setTitle("Vlastnosti podpisu");
+        StringBuilder headerText = new StringBuilder();
+        SignatureResult signatureResult;
         if (pdf.getVerificationResult().isAllSignaturesValid()) {
-            content.getChildren().add(new Label("Podpis je PLATNÝ, podepsaný uživatelem " + signatureResult.getNameOfSigner()+"."));
-            content.getChildren().addAll(new Label("Tento dokument se od aplikování podpisu nezměnil."));
-            content.getChildren().addAll(new Label("Identita autora podpisu je platná."));
+            signatureResult = pdf.getVerificationResult().getSignatureResults().get(0);
         }
         else {
             Optional<SignatureResult> first = pdf.getVerificationResult().getSignatureResults().stream().filter(s -> !s.isSignatureValid()).findFirst();
-            if (first.isPresent()) {
-                signatureResult = first.get();
-                //content.
+            signatureResult = first.get();
+        }
+
+        VBox content = new VBox(3);
+        if (pdf.getVerificationResult().isAllSignaturesValid()) {
+            headerText.append("Podpis je PLATNÝ, podepsaný uživatelem ").append(signatureResult.getNameOfSigner()).append(".");
+        }
+        else if (!pdf.getVerificationResult().isIntegrityOk()) {
+            //Tento Dokument byl od aplikování podpisu změněn nebo poškozen.
+            headerText.append("Podpis je NEPLATNÝ.");
+        }
+        else {
+            headerText.append("Platnost podpisu je NEZNÁMÁ.");
+        }
+        SimpleDateFormat sfd = new SimpleDateFormat("dd.MM.yyyy HH:mm:ss");
+        headerText.append("\nČas podepsání: ").append(sfd.format(signatureResult.getSignDate()));
+        alert.setHeaderText(headerText.toString());
+
+        Label integrityLabel = new Label(pdf.getVerificationResult().isIntegrityOk() ?
+                "Tento dokument se od aplikování podpisu nezměnil." :
+                "Tento dokument byl od aplikování podpisu změněn nebo poškozen.");
+        if (!pdf.getVerificationResult().isIntegrityOk()) integrityLabel.setStyle(STYLE_ERROR);
+        content.getChildren().add(integrityLabel);
+
+        if (signatureResult.isFillingOutFieldsAllowed() || signatureResult.isAddingAnnotationsAllowed()) {
+            String text = "Autor certifikátu určil, že v tomto dokumentu je povoleno ";
+            if (signatureResult.isFillingOutFieldsAllowed()) text+= "vyplňování polí formulárů";
+            if (signatureResult.isAddingAnnotationsAllowed()) text+=" a přidávání poznámek";
+            text+=". Žádné další změny nejsou povoleny.";
+            content.getChildren().add(new Label(text));
+        }
+        else {
+            content.getChildren().add(new Label("Autor certifikátu určil, že v tomto dokumentu nejsou žádné změny povoleny."));
+        }
+
+        if (pdf.getVerificationResult().isAllSignaturesValid()) {
+            content.getChildren().add(new Label("Identita autora podpisu je platná."));
+            content.getChildren().add(new Label("Cesta od certifikátu autora podpisu k certifikátu vystavitele byla úspěšně vytvořena."));
+        }
+        else {
+            if (signatureResult.getErrors() != null) {
+                for (VerificationException verificationException : signatureResult.getErrors()) {
+                    String text;
+                    if (verificationException.getMessage().contains("Cannot be verified against the KeyStore")) {
+                        text = "Vyskytly se chyby při vytváření cesty od certifikátu autora podpisu k certifikátu vystavitele.";
+
+                    }
+                    else text = verificationException.getMessage().substring(verificationException.getMessage().indexOf("failed: ")+8);
+
+                    Label label = new Label(text);
+                    label.setStyle(STYLE_ERROR);
+                    content.getChildren().add(label);
+                }
             }
         }
-        alert.getDialogPane().setExpandableContent(content);
+
+        if (signatureResult.getRevokedNow() == null && signatureResult.getRevokedInTimeOfSignature() == null) {
+            content.getChildren().add(new Label("Kontrola odvolání platnosti nebyla provedena"));
+        }
+        if (signatureResult.getRevokedNow() != null && !signatureResult.getRevokedNow()) {
+            content.getChildren().add(new Label("Certifikát autora podpisu je platný a nebyl odvolán."));
+        }
+        alert.getDialogPane().setContent(content);
 
         alert.showAndWait();
 

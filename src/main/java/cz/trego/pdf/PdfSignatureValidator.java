@@ -55,6 +55,7 @@ public class PdfSignatureValidator {
 
         VerificationResult result =  new VerificationResult();
         result.setAllSignaturesValid(signatureResults.stream().allMatch(SignatureResult::isSignatureValid));
+        result.setNoSignature(names.size() == 0);
         result.setSignatureResults(signatureResults);
         return result;
     }

@@ -10,6 +10,7 @@ import java.util.List;
  */
 public class VerificationResult {
     private boolean allSignaturesValid;
+    private boolean noSignature;
     private List<SignatureResult> signatureResults;
 
     public boolean isAllSignaturesValid() {
@@ -27,6 +28,19 @@ public class VerificationResult {
     public void setSignatureResults(List<SignatureResult> signatureResults) {
         this.signatureResults = signatureResults;
     }
+
+    public boolean isNoSignature() {
+        return noSignature;
+    }
+
+    public void setNoSignature(boolean noSignature) {
+        this.noSignature = noSignature;
+    }
+
+    public boolean isIntegrityOk() {
+        return !(signatureResults != null && signatureResults.size() > 0) || signatureResults.stream().allMatch(SignatureResult::isIntegrity);
+    }
+
 
     public String composeErrorMessage() {
         StringBuilder sb = new StringBuilder();
@@ -55,7 +69,7 @@ public class VerificationResult {
     }
 
     public X509Certificate getFirstSignatureCertificate() {
-        if (signatureResults != null) {
+        if (signatureResults != null && signatureResults.size() > 0) {
             return signatureResults.get(0).getSignerCertificate();
         }
         return null;
