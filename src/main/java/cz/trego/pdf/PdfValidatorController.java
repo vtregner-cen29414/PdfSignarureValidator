@@ -80,7 +80,13 @@ public class PdfValidatorController implements Initializable {
         LOGGER.info("LAST_DIR='{}'", lastDir);
         DirectoryChooser fileChooser = new DirectoryChooser();
         fileChooser.setTitle("Vyberte adresář");
-        if (lastDir != null) fileChooser.setInitialDirectory(new File(lastDir));
+        if (lastDir != null) {
+            File lastDirFile = new File(lastDir);
+            if (lastDirFile.isDirectory() && lastDirFile.canRead()) {
+                fileChooser.setInitialDirectory(new File(lastDir));
+            }
+            else LOGGER.warn("Cannot read directory {}", lastDir);
+        }
         final File dir = fileChooser.showDialog(btnSelectDir.getScene().getWindow());
         if (dir != null) {
             LOGGER.info("Selected dir {}", dir.toString());
