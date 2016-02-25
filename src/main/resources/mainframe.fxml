@@ -20,29 +20,33 @@
                      </HBox.margin>
                   </Button>
                   <Label text="Souborů:" />
-                  <Label fx:id="lblTotal" text="0">
+                  <Hyperlink fx:id="lblTotal" onAction="#onFilter" text="0">
                      <HBox.margin>
                         <Insets left="5.0" right="5.0" />
                      </HBox.margin>
-                  </Label>
+                  </Hyperlink>
                   <Label text="Validních:">
                      <HBox.margin>
                         <Insets left="10.0" right="5.0" />
                      </HBox.margin>
                   </Label>
-                  <Label fx:id="lblValid" text="0" />
+                  <Hyperlink fx:id="lblValid" onAction="#onFilter" text="0">
+                     <HBox.margin>
+                        <Insets />
+                     </HBox.margin>
+                  </Hyperlink>
                   <Label text="Chybných:">
                      <HBox.margin>
                         <Insets left="10.0" right="5.0" />
                      </HBox.margin>
                   </Label>
-                  <Label fx:id="lblInvalid" text="0" />
+                  <Hyperlink fx:id="lblInvalid" onAction="#onFilter" text="0" />
                   <Label text="Bez podpisu:">
                      <HBox.margin>
                         <Insets left="10.0" right="5.0" />
                      </HBox.margin>
                   </Label>
-                  <Label fx:id="lblNoSignature" text="0" />
+                  <Hyperlink fx:id="lblNoSignature" onAction="#onFilter" text="0" />
                </children>
                <padding>
                   <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />

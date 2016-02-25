@@ -5,6 +5,7 @@ import com.itextpdf.text.pdf.security.CertificateInfo;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -55,15 +56,16 @@ public class PdfValidatorController implements Initializable {
     private TableColumn<Pdf, String> colCert;
 
     private ObservableList<Pdf> data;
+    private FilteredList<Pdf> filteredData;
 
     @FXML
-    private Label lblTotal;
+    private Hyperlink lblTotal;
     @FXML
-    private Label lblValid;
+    private Hyperlink lblValid;
     @FXML
-    private Label lblInvalid;
+    private Hyperlink lblInvalid;
     @FXML
-    private Label lblNoSignature;
+    private Hyperlink lblNoSignature;
 
     @FXML
     private ProgressIndicator progress;
@@ -88,7 +90,14 @@ public class PdfValidatorController implements Initializable {
             @Override
             protected Void call() throws Exception {
                 Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<Path>() {
-                        @Override
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                        LOGGER.warn("Cannot read file/directory skipping: {}", exc.toString());
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+
+                    @Override
                         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                             if (attrs.isRegularFile() && file.getFileName().toString().toLowerCase().endsWith(".pdf")) {
                                 try {
@@ -114,9 +123,8 @@ public class PdfValidatorController implements Initializable {
 
                                     Platform.runLater(() -> data.add(pdf));
 
-                                } catch (GeneralSecurityException e) {
+                                } catch (Exception e) {
                                     LOGGER.error("Error while verifiing signature", e);
-                                    e.printStackTrace();
                                 }
                             }
                             return FileVisitResult.CONTINUE;
@@ -154,7 +162,8 @@ public class PdfValidatorController implements Initializable {
         btnSelectDir.setDisable(true);
         progress.setVisible(true);
         data = FXCollections.observableArrayList();
-        tab.setItems(data);
+        filteredData = new FilteredList<>(data);
+        tab.setItems(filteredData);
         new Thread(validateTask).start();
 
     }
@@ -225,6 +234,23 @@ public class PdfValidatorController implements Initializable {
             }
         });
 
+    }
+
+    @FXML
+    private void onFilter(ActionEvent event) {
+        if (data != null && data.size() > 0) {
+            final Hyperlink hyperlink = (Hyperlink) event.getSource();
+
+            filteredData.setPredicate(pdf -> {
+                boolean filter = true;
+                if (hyperlink == lblNoSignature) filter = pdf.getVerificationResult().isNoSignature();
+                if (hyperlink == lblValid) filter = pdf.getVerificationResult().isAllSignaturesValid() && !pdf.getVerificationResult().isNoSignature();
+                if (hyperlink == lblInvalid) filter = !pdf.getVerificationResult().isAllSignaturesValid() && !pdf.getVerificationResult().isNoSignature();
+
+                return filter;
+            });
+
+        }
     }
 
     private void onValidationDetailLink(ActionEvent event, int index) {
