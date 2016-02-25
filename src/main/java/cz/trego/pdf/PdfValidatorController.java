@@ -77,95 +77,100 @@ public class PdfValidatorController implements Initializable {
     public void onSelectDir(ActionEvent actionEvent) {
         final Preferences preferences = Preferences.userNodeForPackage(this.getClass());
         String lastDir = preferences.get(LAST_DIR, null);
+        LOGGER.info("LAST_DIR='{}'", lastDir);
         DirectoryChooser fileChooser = new DirectoryChooser();
         fileChooser.setTitle("Vyberte adresář");
         if (lastDir != null) fileChooser.setInitialDirectory(new File(lastDir));
         final File dir = fileChooser.showDialog(btnSelectDir.getScene().getWindow());
-        final PdfSignatureValidator validator = new PdfSignatureValidator();
-        final AtomicInteger total = new AtomicInteger(0);
-        final AtomicInteger valid = new AtomicInteger(0);
-        final AtomicInteger invalid = new AtomicInteger(0);
-        final AtomicInteger noSignature = new AtomicInteger(0);
-        Task<Void> validateTask = new Task<Void>() {
-            @Override
-            protected Void call() throws Exception {
-                Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<Path>() {
+        if (dir != null) {
+            LOGGER.info("Selected dir {}", dir.toString());
+            final PdfSignatureValidator validator = new PdfSignatureValidator();
+            final AtomicInteger total = new AtomicInteger(0);
+            final AtomicInteger valid = new AtomicInteger(0);
+            final AtomicInteger invalid = new AtomicInteger(0);
+            final AtomicInteger noSignature = new AtomicInteger(0);
+            Task<Void> validateTask = new Task<Void>() {
+                @Override
+                protected Void call() throws Exception {
+                    Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<Path>() {
 
-                    @Override
-                    public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                        LOGGER.warn("Cannot read file/directory skipping: {}", exc.toString());
-                        return FileVisitResult.SKIP_SUBTREE;
-                    }
+                                @Override
+                                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                                    LOGGER.warn("Cannot read file/directory skipping: {}", exc.toString());
+                                    return FileVisitResult.SKIP_SUBTREE;
+                                }
 
-                    @Override
-                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                            if (attrs.isRegularFile() && file.getFileName().toString().toLowerCase().endsWith(".pdf")) {
-                                try {
-                                    VerificationResult result = validator.verifyPdf(file.toString());
-                                    Pdf pdf = new Pdf();
-                                    pdf.setFile(file);
-                                    if (result.isNoSignature()) pdf.setValidationResult("N/A");
-                                    else pdf.setValidationResult(result.isAllSignaturesValid() ? "OK" : result.composeErrorMessage());
+                                @Override
+                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                                    if (attrs.isRegularFile() && file.getFileName().toString().toLowerCase().endsWith(".pdf")) {
+                                        try {
+                                            VerificationResult result = validator.verifyPdf(file.toString());
+                                            Pdf pdf = new Pdf();
+                                            pdf.setFile(file);
+                                            if (result.isNoSignature()) pdf.setValidationResult("N/A");
+                                            else
+                                                pdf.setValidationResult(result.isAllSignaturesValid() ? "OK" : result.composeErrorMessage());
 
-                                    if (result.isNoSignature()) {
-                                        pdf.setCertificate("N/A");
+                                            if (result.isNoSignature()) {
+                                                pdf.setCertificate("N/A");
+                                            } else {
+                                                String dn = result.getFirstSignatureCertificate().getSubjectDN().getName();
+                                                pdf.setCertificate(getSubjectDnPart(dn, "cn"));
+                                            }
+                                            pdf.setVerificationResult(result);
+
+                                            total.incrementAndGet();
+                                            if (pdf.getVerificationResult().isAllSignaturesValid() && !pdf.getVerificationResult().isNoSignature())
+                                                valid.incrementAndGet();
+                                            else if (pdf.getVerificationResult().isNoSignature()) noSignature.incrementAndGet();
+                                            else invalid.incrementAndGet();
+
+                                            Platform.runLater(() -> data.add(pdf));
+
+                                        } catch (Exception e) {
+                                            LOGGER.error("Error while verifiing signature", e);
+                                        }
                                     }
-                                    else {
-                                        String dn = result.getFirstSignatureCertificate().getSubjectDN().getName();
-                                        pdf.setCertificate(getSubjectDnPart(dn, "cn"));
-                                    }
-                                    pdf.setVerificationResult(result);
-
-                                    total.incrementAndGet();
-                                    if (pdf.getVerificationResult().isAllSignaturesValid() && !pdf.getVerificationResult().isNoSignature()) valid.incrementAndGet();
-                                    else if (pdf.getVerificationResult().isNoSignature()) noSignature.incrementAndGet();
-                                    else invalid.incrementAndGet();
-
-                                    Platform.runLater(() -> data.add(pdf));
-
-                                } catch (Exception e) {
-                                    LOGGER.error("Error while verifiing signature", e);
+                                    return FileVisitResult.CONTINUE;
                                 }
                             }
-                            return FileVisitResult.CONTINUE;
-                        }
-                    }
-                );
-                return null;
-            }
+                    );
+                    return null;
+                }
 
-            @Override
-            protected void succeeded() {
-                preferences.put(LAST_DIR, dir.toString());
-                Platform.runLater(() -> {
-                    lblTotal.setText(String.valueOf(total.get()));
-                    lblValid.setText(String.valueOf(valid.get()));
-                    lblInvalid.setText(String.valueOf(invalid.get()));
-                    lblNoSignature.setText(String.valueOf(noSignature.get()));
-                    progress.setVisible(false);
-                    btnSelectDir.setDisable(false);
-                });
-            }
+                @Override
+                protected void succeeded() {
+                    preferences.put(LAST_DIR, dir.toString());
+                    Platform.runLater(() -> {
+                        lblTotal.setText(String.valueOf(total.get()));
+                        lblValid.setText(String.valueOf(valid.get()));
+                        lblInvalid.setText(String.valueOf(invalid.get()));
+                        lblNoSignature.setText(String.valueOf(noSignature.get()));
+                        progress.setVisible(false);
+                        btnSelectDir.setDisable(false);
+                    });
+                }
 
-            @Override
-            protected void failed() {
-                LOGGER.error("Error while verifiing signature", getException());
-                Platform.runLater(() -> {
-                    progress.setVisible(false);
-                    btnSelectDir.setDisable(false);
-                });
-            }
+                @Override
+                protected void failed() {
+                    LOGGER.error("Error while verifiing signature", getException());
+                    Platform.runLater(() -> {
+                        progress.setVisible(false);
+                        btnSelectDir.setDisable(false);
+                    });
+                }
 
 
-        };
+            };
 
-        btnSelectDir.setDisable(true);
-        progress.setVisible(true);
-        data = FXCollections.observableArrayList();
-        filteredData = new FilteredList<>(data);
-        tab.setItems(filteredData);
-        new Thread(validateTask).start();
-
+            btnSelectDir.setDisable(true);
+            progress.setVisible(true);
+            data = FXCollections.observableArrayList();
+            filteredData = new FilteredList<>(data);
+            tab.setItems(filteredData);
+            new Thread(validateTask).start();
+        }
+        else LOGGER.info("No dir selected!");
     }
 
     private String getSubjectDnPart(String dn, String part) {
